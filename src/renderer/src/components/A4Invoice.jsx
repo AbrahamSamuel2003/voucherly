@@ -106,7 +106,14 @@ const A4Invoice = ({ invoice, business, chunks, subtotal, totalTax, grandTotal, 
                   return (
                     <tr key={idx} style={{ height: '38px', fontWeight: 'bold', fontSize: '13px', borderBottom: '1.5px solid #000', verticalAlign: 'middle' }}>
                     <td style={{ borderRight: '2px solid #000', verticalAlign: 'middle' }}>{pageIdx * 15 + idx + 1}</td>
-                    <td style={{ borderRight: '2px solid #000', verticalAlign: 'middle', textAlign: 'left', paddingLeft: '6px' }}>{item.name.toUpperCase()}</td>
+                    <td style={{ borderRight: '2px solid #000', verticalAlign: 'middle', textAlign: 'left', paddingLeft: '6px' }}>
+                      <div>{item.name.toUpperCase()}</div>
+                      {(item.hsnCode || item.hsn) && (
+                        <div style={{ fontSize: '10px', color: '#333', fontWeight: '600', lineHeight: '1.2' }}>
+                          HSN: {item.hsnCode || item.hsn}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ borderRight: '2px solid #000', verticalAlign: 'middle' }}>{unitInclusive.toFixed(2)}</td>
                     <td style={{ borderRight: '2px solid #000', verticalAlign: 'middle' }}>{item.mrp || '0.00'}</td>
                     <td style={{ borderRight: '2px solid #000', textAlign: 'center', verticalAlign: 'middle', fontSize: '11px' }}>{qty} {item.unit || ''}</td>

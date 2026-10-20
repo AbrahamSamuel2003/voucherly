@@ -29,16 +29,96 @@ const Items = ({ business, updateBusiness, showToast }) => {
     }
 
     let updatedItems;
+    const targetId = editingId;
+    const originalItem = editingId ? business.items.find(i => i.id === editingId) : null;
+    const trimmedNewName = (newItem.name || '').trim().toLowerCase();
+    const newHsnCode = (newItem.hsnCode || '').trim();
+
     if (editingId) {
-      updatedItems = business.items.map(i => i.id === editingId ? { ...i, ...newItem } : i);
+      updatedItems = business.items.map(i => i.id === editingId ? { ...i, ...newItem, hsnCode: newHsnCode } : i);
     } else {
-      updatedItems = [...business.items, { id: crypto.randomUUID(), ...newItem }];
+      updatedItems = [...business.items, { id: crypto.randomUUID(), ...newItem, hsnCode: newHsnCode }];
     }
-    updateBusiness({ items: updatedItems });
-    showToast(editingId ? 'Product updated!' : 'Product added!');
+
+    // Synchronize HSN code across all existing invoices
+    let updatedInvoices = business.invoices || [];
+    let syncedInvoiceCount = 0;
+
+    updatedInvoices = updatedInvoices.map(invoice => {
+      let invoiceChanged = false;
+      const updatedInvoiceItems = (invoice.items || []).map(invItem => {
+        const matchesId = Boolean(targetId && invItem.id && invItem.id === targetId);
+        const matchesOriginalName = Boolean(originalItem?.name && invItem.name && invItem.name.trim().toLowerCase() === originalItem.name.trim().toLowerCase());
+        const matchesNewName = Boolean(invItem.name && invItem.name.trim().toLowerCase() === trimmedNewName);
+
+        if (matchesId || matchesOriginalName || matchesNewName) {
+          if ((invItem.hsnCode || '') !== newHsnCode) {
+            invoiceChanged = true;
+            return { ...invItem, hsnCode: newHsnCode, hsn: newHsnCode };
+          }
+        }
+        return invItem;
+      });
+
+      if (invoiceChanged) {
+        syncedInvoiceCount++;
+        return { ...invoice, items: updatedInvoiceItems };
+      }
+      return invoice;
+    });
+
+    updateBusiness({ items: updatedItems, invoices: updatedInvoices });
+    if (syncedInvoiceCount > 0) {
+      showToast(`${editingId ? 'Product updated' : 'Product added'} & HSN synced to ${syncedInvoiceCount} invoice(s)!`);
+    } else {
+      showToast(editingId ? 'Product updated!' : 'Product added!');
+    }
+
     setNewItem(initialItemState);
     setEditingId(null);
     setShowForm(false);
+  };
+
+  // One-click helper to sync all catalog items' HSN codes to past invoices
+  const handleSyncAllHsn = () => {
+    const catalog = business.items || [];
+    if (!catalog.length || !business.invoices?.length) {
+      showToast('No items or invoices to sync.', 'info');
+      return;
+    }
+
+    let syncedInvoiceCount = 0;
+    const updatedInvoices = (business.invoices || []).map(invoice => {
+      let invoiceChanged = false;
+      const updatedInvoiceItems = (invoice.items || []).map(invItem => {
+        const match = catalog.find(catItem =>
+          (invItem.id && catItem.id === invItem.id) ||
+          (invItem.name && catItem.name && invItem.name.trim().toLowerCase() === catItem.name.trim().toLowerCase())
+        );
+
+        if (match && match.hsnCode !== undefined) {
+          const catalogHsn = (match.hsnCode || '').trim();
+          if ((invItem.hsnCode || '') !== catalogHsn) {
+            invoiceChanged = true;
+            return { ...invItem, hsnCode: catalogHsn, hsn: catalogHsn };
+          }
+        }
+        return invItem;
+      });
+
+      if (invoiceChanged) {
+        syncedInvoiceCount++;
+        return { ...invoice, items: updatedInvoiceItems };
+      }
+      return invoice;
+    });
+
+    if (syncedInvoiceCount > 0) {
+      updateBusiness({ invoices: updatedInvoices });
+      showToast(`Successfully synced HSN codes across ${syncedInvoiceCount} invoice(s)!`);
+    } else {
+      showToast('All invoices already have matching HSN codes.');
+    }
   };
 
   // edit an item
@@ -59,18 +139,28 @@ const Items = ({ business, updateBusiness, showToast }) => {
     <div className="items-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <h1>Products & Items</h1>
-        <button
-          className="action-btn"
-          onClick={() => {
-            if (showForm) {
-              setNewItem(initialItemState);
-              setEditingId(null);
-            }
-            setShowForm(!showForm);
-          }}
-        >
-          {showForm ? 'Cancel' : 'Add New Product'}
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            className="action-btn"
+            style={{ background: 'var(--surface-color)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+            onClick={handleSyncAllHsn}
+            title="Sync all current catalog HSN codes into existing past invoices"
+          >
+            🔄 Sync HSN to Invoices
+          </button>
+          <button
+            className="action-btn"
+            onClick={() => {
+              if (showForm) {
+                setNewItem(initialItemState);
+                setEditingId(null);
+              }
+              setShowForm(!showForm);
+            }}
+          >
+            {showForm ? 'Cancel' : 'Add New Product'}
+          </button>
+        </div>
       </div>
 
       <div className="search-section" style={{ marginBottom: '24px' }}>
