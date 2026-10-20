@@ -33,14 +33,15 @@ const Items = ({ business, updateBusiness, showToast }) => {
     const originalItem = editingId ? business.items.find(i => i.id === editingId) : null;
     const trimmedNewName = (newItem.name || '').trim().toLowerCase();
     const newHsnCode = (newItem.hsnCode || '').trim();
+    const newUnit = (newItem.unit || 'Box').trim();
 
     if (editingId) {
-      updatedItems = business.items.map(i => i.id === editingId ? { ...i, ...newItem, hsnCode: newHsnCode } : i);
+      updatedItems = business.items.map(i => i.id === editingId ? { ...i, ...newItem, hsnCode: newHsnCode, unit: newUnit } : i);
     } else {
-      updatedItems = [...business.items, { id: crypto.randomUUID(), ...newItem, hsnCode: newHsnCode }];
+      updatedItems = [...business.items, { id: crypto.randomUUID(), ...newItem, hsnCode: newHsnCode, unit: newUnit }];
     }
 
-    // Synchronize HSN code across all existing invoices
+    // Synchronize HSN code and Unit across all existing invoices
     let updatedInvoices = business.invoices || [];
     let syncedInvoiceCount = 0;
 
@@ -52,9 +53,17 @@ const Items = ({ business, updateBusiness, showToast }) => {
         const matchesNewName = Boolean(invItem.name && invItem.name.trim().toLowerCase() === trimmedNewName);
 
         if (matchesId || matchesOriginalName || matchesNewName) {
-          if ((invItem.hsnCode || '') !== newHsnCode) {
+          const hsnNeedsUpdate = (invItem.hsnCode || '') !== newHsnCode;
+          const unitNeedsUpdate = (invItem.unit || '') !== newUnit;
+
+          if (hsnNeedsUpdate || unitNeedsUpdate) {
             invoiceChanged = true;
-            return { ...invItem, hsnCode: newHsnCode, hsn: newHsnCode };
+            return {
+              ...invItem,
+              hsnCode: newHsnCode,
+              hsn: newHsnCode,
+              unit: newUnit
+            };
           }
         }
         return invItem;
@@ -69,7 +78,7 @@ const Items = ({ business, updateBusiness, showToast }) => {
 
     updateBusiness({ items: updatedItems, invoices: updatedInvoices });
     if (syncedInvoiceCount > 0) {
-      showToast(`${editingId ? 'Product updated' : 'Product added'} & HSN synced to ${syncedInvoiceCount} invoice(s)!`);
+      showToast(`${editingId ? 'Product updated' : 'Product added'} & synced (Unit & HSN) to ${syncedInvoiceCount} invoice(s)!`);
     } else {
       showToast(editingId ? 'Product updated!' : 'Product added!');
     }
@@ -79,8 +88,8 @@ const Items = ({ business, updateBusiness, showToast }) => {
     setShowForm(false);
   };
 
-  // One-click helper to sync all catalog items' HSN codes to past invoices
-  const handleSyncAllHsn = () => {
+  // One-click helper to sync all catalog items' HSN codes and Units to past invoices
+  const handleSyncCatalogToInvoices = () => {
     const catalog = business.items || [];
     if (!catalog.length || !business.invoices?.length) {
       showToast('No items or invoices to sync.', 'info');
@@ -96,11 +105,20 @@ const Items = ({ business, updateBusiness, showToast }) => {
           (invItem.name && catItem.name && invItem.name.trim().toLowerCase() === catItem.name.trim().toLowerCase())
         );
 
-        if (match && match.hsnCode !== undefined) {
+        if (match) {
           const catalogHsn = (match.hsnCode || '').trim();
-          if ((invItem.hsnCode || '') !== catalogHsn) {
+          const catalogUnit = (match.unit || 'Box').trim();
+          const hsnNeedsUpdate = (invItem.hsnCode || '') !== catalogHsn;
+          const unitNeedsUpdate = (invItem.unit || '') !== catalogUnit;
+
+          if (hsnNeedsUpdate || unitNeedsUpdate) {
             invoiceChanged = true;
-            return { ...invItem, hsnCode: catalogHsn, hsn: catalogHsn };
+            return {
+              ...invItem,
+              hsnCode: catalogHsn,
+              hsn: catalogHsn,
+              unit: catalogUnit
+            };
           }
         }
         return invItem;
@@ -115,9 +133,9 @@ const Items = ({ business, updateBusiness, showToast }) => {
 
     if (syncedInvoiceCount > 0) {
       updateBusiness({ invoices: updatedInvoices });
-      showToast(`Successfully synced HSN codes across ${syncedInvoiceCount} invoice(s)!`);
+      showToast(`Successfully synced Units & HSN codes across ${syncedInvoiceCount} invoice(s)!`);
     } else {
-      showToast('All invoices already have matching HSN codes.');
+      showToast('All invoices already match current catalog Units & HSN codes.');
     }
   };
 
@@ -143,10 +161,10 @@ const Items = ({ business, updateBusiness, showToast }) => {
           <button
             className="action-btn"
             style={{ background: 'var(--surface-color)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
-            onClick={handleSyncAllHsn}
-            title="Sync all current catalog HSN codes into existing past invoices"
+            onClick={handleSyncCatalogToInvoices}
+            title="Sync all current catalog Units & HSN codes into existing past invoices"
           >
-            🔄 Sync HSN to Invoices
+            🔄 Sync Items to Invoices
           </button>
           <button
             className="action-btn"
