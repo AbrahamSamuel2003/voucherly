@@ -7,6 +7,7 @@ const Invoices = ({ business, updateBusiness }) => {
 
   // Search & Filter States
   const [search, setSearch] = useState('');
+  const [invNumberFilter, setInvNumberFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'paid' | 'unpaid'
   const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'today' | 'this_week' | 'this_month' | 'last_month' | 'this_year' | 'custom'
   const [customStartDate, setCustomStartDate] = useState('');
@@ -77,6 +78,21 @@ const Invoices = ({ business, updateBusiness }) => {
     const endOfToday = startOfToday + 86400000 - 1;
 
     return (business.invoices || []).filter(invoice => {
+      // 0. Dedicated Invoice Number Filter
+      if (invNumberFilter.trim()) {
+        const query = invNumberFilter.trim().toLowerCase();
+        const queryDigits = query.replace(/\D/g, ''); // e.g. "86" from "INV-86" or "86"
+        const invNum = (invoice.number || '').toLowerCase();
+        const invSeq = String(getInvoiceSeq(invoice));
+
+        const matchesExact = invNum.includes(query);
+        const matchesSeq = queryDigits !== '' && (invSeq === queryDigits || invNum.endsWith(`-${queryDigits}`));
+
+        if (!matchesExact && !matchesSeq) {
+          return false;
+        }
+      }
+
       // 1. Text Search (Number, Shop Name, Customer Name, Phone, Items)
       if (search.trim()) {
         const query = search.trim().toLowerCase();
@@ -138,7 +154,7 @@ const Invoices = ({ business, updateBusiness }) => {
 
       return true;
     });
-  }, [business.invoices, search, statusFilter, customerFilter, dateFilter, customStartDate, customEndDate]);
+  }, [business.invoices, search, invNumberFilter, statusFilter, customerFilter, dateFilter, customStartDate, customEndDate]);
 
   // Robust Sorting Pipeline (Guaranteed Recent-First)
   const sortedInvoices = useMemo(() => {
@@ -206,27 +222,6 @@ const Invoices = ({ business, updateBusiness }) => {
     });
   }, [filteredInvoices, sortBy, sortDir, invoiceIndexMap]);
 
-  // Live Summary of Filtered Invoices
-  const summary = useMemo(() => {
-    let totalBilled = 0;
-    let paidAmount = 0;
-    let unpaidAmount = 0;
-
-    sortedInvoices.forEach(inv => {
-      const amt = parseFloat(inv.total) || 0;
-      totalBilled += amt;
-      if (inv.paid) paidAmount += amt;
-      else unpaidAmount += amt;
-    });
-
-    return {
-      count: sortedInvoices.length,
-      totalBilled,
-      paidAmount,
-      unpaidAmount
-    };
-  }, [sortedInvoices]);
-
   const toggleSort = (column) => {
     if (sortBy === column) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -237,10 +232,11 @@ const Invoices = ({ business, updateBusiness }) => {
     }
   };
 
-  const isFilterActive = search !== '' || statusFilter !== 'all' || dateFilter !== 'all' || customerFilter !== 'all' || customStartDate !== '' || customEndDate !== '';
+  const isFilterActive = search !== '' || invNumberFilter !== '' || statusFilter !== 'all' || dateFilter !== 'all' || customerFilter !== 'all' || customStartDate !== '' || customEndDate !== '';
 
   const handleResetFilters = () => {
     setSearch('');
+    setInvNumberFilter('');
     setStatusFilter('all');
     setDateFilter('all');
     setCustomStartDate('');
@@ -393,31 +389,6 @@ const Invoices = ({ business, updateBusiness }) => {
         </div>
       </div>
 
-      {/* Live Financial Metrics Ribbon */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: '16px',
-        marginBottom: '20px'
-      }}>
-        <div className="stat-card" style={{ padding: '16px 20px', borderRadius: '10px' }}>
-          <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Filtered Invoices</div>
-          <div style={{ fontSize: '24px', fontWeight: '700', marginTop: '4px', color: 'var(--text-main)' }}>{summary.count}</div>
-        </div>
-        <div className="stat-card" style={{ padding: '16px 20px', borderRadius: '10px' }}>
-          <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total Billed</div>
-          <div style={{ fontSize: '24px', fontWeight: '700', marginTop: '4px', color: 'var(--accent-color)' }}>₹{summary.totalBilled.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </div>
-        <div className="stat-card" style={{ padding: '16px 20px', borderRadius: '10px' }}>
-          <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Paid Amount</div>
-          <div style={{ fontSize: '24px', fontWeight: '700', marginTop: '4px', color: '#059669' }}>₹{summary.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </div>
-        <div className="stat-card" style={{ padding: '16px 20px', borderRadius: '10px' }}>
-          <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Outstanding (Unpaid)</div>
-          <div style={{ fontSize: '24px', fontWeight: '700', marginTop: '4px', color: '#e11d48' }}>₹{summary.unpaidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </div>
-      </div>
-
       {/* Filter Control Bar */}
       <div style={{
         background: 'white',
@@ -494,10 +465,22 @@ const Invoices = ({ business, updateBusiness }) => {
           </div>
         </div>
 
-        {/* Row 2: Date Filters, Customer Filter & Reset */}
+        {/* Row 2: Date Filters, INV # Filter, Customer Filter & Reset */}
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '600' }}>
             <FaFilter style={{ fontSize: '12px' }} /> Filters:
+          </div>
+
+          {/* Dedicated Invoice Number Filter */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              className="search-input"
+              placeholder="🔢 INV # (e.g. 86)"
+              value={invNumberFilter}
+              onChange={e => setInvNumberFilter(e.target.value)}
+              style={{ width: '150px', padding: '8px 12px', fontSize: '13px' }}
+              title="Filter by Invoice Number"
+            />
           </div>
 
           {/* Date Period Preset */}
