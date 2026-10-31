@@ -14,8 +14,8 @@ const Invoices = ({ business, updateBusiness }) => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [customerFilter, setCustomerFilter] = useState('all');
 
-  // Sorting: Default to 'date' descending (Most recent first)
-  const [sortBy, setSortBy] = useState('date');
+  // Sorting: Default to 'number' descending (Latest INV # first)
+  const [sortBy, setSortBy] = useState('number');
   const [sortDir, setSortDir] = useState('desc');
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -227,12 +227,12 @@ const Invoices = ({ business, updateBusiness }) => {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
     } else {
       setSortBy(column);
-      // For date or total, default to desc (highest / newest first)
-      setSortDir(column === 'date' || column === 'total' ? 'desc' : 'asc');
+      // For number, date, or total, default to desc (highest / newest first)
+      setSortDir(column === 'number' || column === 'date' || column === 'total' ? 'desc' : 'asc');
     }
   };
 
-  const isFilterActive = search !== '' || invNumberFilter !== '' || statusFilter !== 'all' || dateFilter !== 'all' || customerFilter !== 'all' || customStartDate !== '' || customEndDate !== '';
+  const isFilterActive = search !== '' || invNumberFilter !== '' || statusFilter !== 'all' || dateFilter !== 'all' || customerFilter !== 'all' || customStartDate !== '' || customEndDate !== '' || sortBy !== 'number' || sortDir !== 'desc';
 
   const handleResetFilters = () => {
     setSearch('');
@@ -242,7 +242,7 @@ const Invoices = ({ business, updateBusiness }) => {
     setCustomStartDate('');
     setCustomEndDate('');
     setCustomerFilter('all');
-    setSortBy('date');
+    setSortBy('number');
     setSortDir('desc');
   };
 
@@ -465,11 +465,31 @@ const Invoices = ({ business, updateBusiness }) => {
           </div>
         </div>
 
-        {/* Row 2: Date Filters, INV # Filter, Customer Filter & Reset */}
+        {/* Row 2: Sort By, INV # Filter, Date Filters, Customer Filter & Reset */}
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '600' }}>
             <FaFilter style={{ fontSize: '12px' }} /> Filters:
           </div>
+
+          {/* Sort By Dropdown */}
+          <select
+            value={`${sortBy}-${sortDir}`}
+            onChange={e => {
+              const [newSortBy, newSortDir] = e.target.value.split('-');
+              setSortBy(newSortBy);
+              setSortDir(newSortDir);
+            }}
+            style={{ width: 'auto', minWidth: '185px', padding: '8px 12px', fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', border: '1px solid var(--accent-color)' }}
+            title="Change invoice ordering"
+          >
+            <option value="number-desc">🔢 Latest INV # First (High → Low)</option>
+            <option value="number-asc">🔢 Oldest INV # First (Low → High)</option>
+            <option value="date-desc">📅 Newest Date First</option>
+            <option value="date-asc">📅 Oldest Date First</option>
+            <option value="total-desc">💰 Highest Total First</option>
+            <option value="total-asc">💰 Lowest Total First</option>
+            <option value="customer-asc">👤 Customer Name (A → Z)</option>
+          </select>
 
           {/* Dedicated Invoice Number Filter */}
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
